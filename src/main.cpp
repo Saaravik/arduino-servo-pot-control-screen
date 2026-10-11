@@ -10,6 +10,10 @@ constexpr uint8_t encoderClockPin = 2;
 constexpr uint8_t encoderDataPin = 3;
 constexpr uint8_t encoderButtonPin = 4;
 constexpr uint8_t servoPin = 9;
+constexpr uint8_t buzzerPin = 8;
+constexpr unsigned int beepFrequencyHz = 2000;
+constexpr unsigned long beepDurationMs = 40;
+constexpr unsigned long beepGapMs = 20;
 constexpr int minimumAngle = 0;
 constexpr int maximumAngle = 180;
 constexpr int centerAngle = (minimumAngle + maximumAngle) / 2;
@@ -36,6 +40,9 @@ int currentAngle = centerAngle;
 volatile uint8_t previousEncoderState;
 volatile int8_t encoderTransitions = 0;
 volatile int encoderAngle = centerAngle;
+volatile uint8_t pendingBeeps = 0;
+bool buzzerPlaying = false;
+unsigned long buzzerChangedAt = 0;
 bool previousButtonReading = HIGH;
 bool stableButtonState = HIGH;
 unsigned long buttonChangedAt = 0;
@@ -103,6 +110,10 @@ void onEncoderChange() {
     // Completar el ciclo evita que un rebote cuente como un giro adicional.
     if (state == 3) {
         if (encoderTransitions == 4 || encoderTransitions == -4) {
+            // También suena en los límites de 0 y 180 grados.
+            if (pendingBeeps < 255) {
+                ++pendingBeeps;
+            }
             const int direction = encoderTransitions > 0 ? 1 : -1;
             encoderAngle = constrain(encoderAngle + direction * encoderDirection * angleStep,
                                      minimumAngle, maximumAngle);
@@ -119,6 +130,33 @@ void updateEncoder() {
     if (angle != currentAngle) {
         currentAngle = angle;
         servo.write(currentAngle);
+    }
+}
+
+void updateBuzzer() {
+    const unsigned long now = millis();
+    if (buzzerPlaying) {
+        if (now - buzzerChangedAt >= beepDurationMs) {
+            noTone(buzzerPin);
+            buzzerPlaying = false;
+            buzzerChangedAt = now;
+        }
+        return;
+    }
+    if (now - buzzerChangedAt < beepGapMs) {
+        return;
+    }
+    bool playBeep = false;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        if (pendingBeeps > 0) {
+            --pendingBeeps;
+            playBeep = true;
+        }
+    }
+    if (playBeep) {
+        tone(buzzerPin, beepFrequencyHz, beepDurationMs);
+        buzzerPlaying = true;
+        buzzerChangedAt = now;
     }
 }
 
@@ -150,6 +188,8 @@ void setup() {
     pinMode(encoderClockPin, INPUT_PULLUP);
     pinMode(encoderDataPin, INPUT_PULLUP);
     pinMode(encoderButtonPin, INPUT_PULLUP);
+    pinMode(buzzerPin, OUTPUT);
+    digitalWrite(buzzerPin, LOW);
     previousEncoderState = readEncoderState();
     servo.attach(servoPin);
     servo.write(currentAngle);
@@ -163,5 +203,6 @@ void setup() {
 void loop() {
     updateEncoder();
     updateButton();
+    updateBuzzer();
     updateDisplay();
 }

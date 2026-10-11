@@ -5,6 +5,7 @@ cambia el ángulo 10 grados, entre 0 y 180; el pulsador lo devuelve a 90 grados.
 La OLED de 0,91 pulgadas muestra ese ángulo en grados desde el arranque.
 Se asume un módulo I²C de cuatro pines y resolución **128 × 32**.
 El valor mostrado es la posición ordenada al servo, no una medición física.
+Un piezo pasivo emite un beep por cada paso válido del encoder.
 
 ## Conexiones
 
@@ -15,6 +16,8 @@ El valor mostrado es la posición ordenada al servo, no una medición física.
 | Encoder | SW | D4 |
 | Encoder | VCC / GND | 5 V / GND |
 | Servo | Señal | D9 |
+| Piezo pasivo | + | D8 mediante resistencia de 100 Ω en serie |
+| Piezo pasivo | − | GND |
 | OLED | SDA | A4 / SDA |
 | OLED | SCL | A5 / SCL |
 | OLED | GND | GND común |
@@ -27,6 +30,22 @@ un adaptador de nivel bidireccional para SDA/SCL entre la OLED y el Uno.
 Dimensiona la alimentación para el consumo del servo, incluyendo su corriente
 de arranque/bloqueo. No alimentes el servo desde un pin digital. Mantén un GND
 común entre Arduino y la alimentación del servo.
+
+## Sonido del encoder
+
+Utiliza un pequeño piezo pasivo de dos terminales apto para Arduino. Un altavoz
+convencional de 4/8 Ω necesita una etapa de amplificación; no lo conectes
+directamente a D8.
+
+Cada ciclo completo del encoder produce un tono de **2000 Hz durante 40 ms**,
+con una separación mínima de 20 ms entre tonos. También suena al girar contra
+los límites de 0 y 180 grados. El pulsador de retorno a 90 grados no produce
+sonido. Los pasos detectados durante una actualización de la OLED se guardan
+en una cola de hasta 255 beeps; si giras muy rápido, se reproducen después.
+No se utiliza `delay()`, por lo que el control del servo y la pantalla continúan.
+
+Puedes ajustar `buzzerPin`, `beepFrequencyHz`, `beepDurationMs` y `beepGapMs`
+en `src/main.cpp`. No hace falta instalar otra biblioteca.
 
 ## Pantalla
 
